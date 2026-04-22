@@ -126,7 +126,6 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            /* AGRANDADO: DE 80PX A 140PX */
             font-size: 140px;
             font-family: 'Outfit', sans-serif;
             font-weight: 900;
@@ -376,9 +375,11 @@
             const feedback = document.getElementById('writing-feedback');
             const targetWord = originalVocabulary[state.writingIdx].word;
             
-            if (points.length < 15) {
-                feedback.innerText = "Write the complete word!";
+            // Si hay pocos puntos, limpiar y avisar
+            if (points.length < 10) {
+                feedback.innerText = "Write the word first!";
                 feedback.className = "mt-4 font-bold text-lg text-orange-500 animate__animated animate__shakeX";
+                clearCanvas();
                 return;
             }
 
@@ -396,11 +397,12 @@
             hiddenCanvas.width = 500; hiddenCanvas.height = 300;
             const hCtx = hiddenCanvas.getContext('2d');
             
-            // AJUSTADO: FUENTE MÁS GRANDE EN LA MÁSCARA (140PX) PARA COINCIDIR CON LA GUÍA
+            // IMPORTANTE: Aseguramos que la máscara se genere con la palabra actual
             hCtx.font = "900 140px Outfit";
             hCtx.textAlign = "center";
             hCtx.textBaseline = "middle";
             hCtx.letterSpacing = "8px";
+            hCtx.fillStyle = "white"; // Asegura contraste
             hCtx.fillText(targetWord, 250, 150);
 
             const imgData = hCtx.getImageData(0, 0, 500, 300).data;
@@ -411,7 +413,7 @@
                     for (let sy = 0; sy < gridSize; sy++) {
                         for (let sx = 0; sx < gridSize; sx++) {
                             const idx = ((y + sy) * 500 + (x + sx)) * 4 + 3;
-                            if (imgData[idx] > 50) { hasPixel = true; break; }
+                            if (imgData[idx] > 100) { hasPixel = true; break; }
                         }
                         if (hasPixel) break;
                     }
@@ -427,20 +429,26 @@
             userGrid.forEach(cell => { if (!targetCells.has(cell)) errors++; });
             const errorRate = errors / userGrid.size;
 
-            // MANTENIENDO CALIBRACIÓN BALANCEADA
-            if (coverage > 0.45 && errorRate < 0.65) {
+            // Validación con umbral de cobertura 45% y error 65%
+            if (coverage > 0.40 && errorRate < 0.70) {
                 feedback.innerText = "🌟 AMAZING! 🌟";
                 feedback.className = "mt-4 font-bold text-xl text-emerald-500 animate__animated animate__tada";
                 updateStars(5);
                 confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
                 setTimeout(() => {
                     state.writingIdx++;
-                    if (state.writingIdx < originalVocabulary.length) setupWritingLevel();
-                    else { unlockNext('spelling'); startMission('map'); }
+                    if (state.writingIdx < originalVocabulary.length) {
+                        setupWritingLevel();
+                    } else { 
+                        unlockNext('spelling'); 
+                        startMission('map'); 
+                    }
                 }, 1500);
             } else {
-                feedback.innerText = coverage < 0.45 ? "Trace over all letters!" : "Try to follow the lines better!";
+                feedback.innerText = "Try again! Trace the guide!";
                 feedback.className = "mt-4 font-bold text-lg text-amber-500 animate__animated animate__shakeX";
+                // SOLICITUD DEL USUARIO: Borrar la palabra si está mal al apretar el botón
+                setTimeout(() => clearCanvas(), 800);
             }
         }
 
@@ -453,6 +461,7 @@
         function setupWritingLevel() {
             clearCanvas();
             const current = originalVocabulary[state.writingIdx];
+            if (!current) return;
             document.getElementById('writing-target-icon').innerText = current.icon;
             document.getElementById('writing-prompt').innerText = `Write the word: ${current.word}`;
             document.getElementById('canvas-guide-text').innerText = current.word;
@@ -489,10 +498,23 @@
             document.getElementById(`${id}-section`).classList.remove('hidden');
             state.currentSection = id;
             const robot = document.getElementById('mission-toast');
-            if (id === 'writing') { setTimeout(initCanvas, 100); state.writingIdx = 0; setupWritingLevel(); }
-            if (id === 'map') { document.body.appendChild(robot); robot.className = 'robot-default-pos animate__animated animate__fadeInUp flex flex-col items-center gap-2'; } 
+            if (id === 'writing') { 
+                setTimeout(() => {
+                    initCanvas();
+                    setupWritingLevel(); 
+                }, 100);
+            }
+            if (id === 'map') { 
+                document.body.appendChild(robot); 
+                robot.className = 'robot-default-pos animate__animated animate__fadeInUp flex flex-col items-center gap-2'; 
+            } 
             else if (id === 'learn') renderLearn();
-            else if (id === 'spelling') { document.getElementById('robot-anchor-spelling').appendChild(robot); robot.className = 'robot-spelling-pos flex flex-col items-center gap-2'; state.spellingIdx = 0; renderSpelling(); }
+            else if (id === 'spelling') { 
+                document.getElementById('robot-anchor-spelling').appendChild(robot); 
+                robot.className = 'robot-spelling-pos flex flex-col items-center gap-2'; 
+                state.spellingIdx = 0; 
+                renderSpelling(); 
+            }
             else if (id === 'quiz') { state.quizIdx = 0; renderQuiz(); }
         }
 
